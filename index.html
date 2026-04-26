@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SignalR Chat</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+</head>
+
+<body>
+  <h2>SignalR Chat</h2>
+
+  <input id="messageInput" placeholder="Type a message" />
+  <button onclick="sendMessage()">Send</button>
+
+  <ul id="messages"></ul>
+
+  <script>
+    let connection;
+
+    // 🔥 START CONNECTION
+    async function start() {
+      try {
+        console.log("Calling negotiate...");
+
+        // Step 1: Call Azure Function (negotiate)
+        const response = await fetch("http://localhost:7071/api/negotiate", {
+          method: "POST"
+        });
+
+        const data = await response.json();
+
+        console.log("Negotiate response:", data);
+
+        // Step 2: Connect to SignalR
+        connection = new signalR.HubConnectionBuilder()
+          .withUrl(data.url, {
+            accessTokenFactory: () => data.accessToken
+          })
+          .withAutomaticReconnect()
+          .build();
+
+        // Step 3: Listen for messages
+        connection.on("newMessage", (message) => {
+          console.log("Received message:", message);
+
+          const li = document.createElement("li");
+          li.textContent = message.sender + ": " + message.text;
+
+          document.getElementById("messages").appendChild(li);
+        });
+
+        await connection.start();
+        console.log("Connected to SignalR ✅");
+
+      } catch (error) {
+        console.error("Connection error:", error);
+      }
+    }
+
+    // 🔥 SEND MESSAGE
+    async function sendMessage() {
+      const text = document.getElementById("messageInput").value;
+
+      if (!text) return;
+
+      console.log("Sending message:", text);
+
+      try {
+        await fetch("http://localhost:7071/api/sendMessage", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            text: text
+          })
+        });
+
+        document.getElementById("messageInput").value = "";
+
+      } catch (error) {
+        console.error("Send error:", error);
+      }
+    }
+
+    // Start app
+    start();
+  </script>
+</body>
+</html>
