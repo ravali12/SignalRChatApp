@@ -3,34 +3,153 @@
 <head>
   <title>SignalR Chat</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #dbeafe, #fce7f3);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .chat-container {
+      width: 420px;
+      height: 620px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, #2563eb, #9333ea);
+      color: white;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .chat-header h2 {
+      margin: 0;
+    }
+
+    .status {
+      font-size: 13px;
+      margin-top: 5px;
+      opacity: 0.9;
+    }
+
+    .user-section {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .user-section input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    #messages {
+      flex: 1;
+      padding: 15px;
+      list-style: none;
+      overflow-y: auto;
+      margin: 0;
+      background: #f8fafc;
+    }
+
+    .message {
+      background: #e0e7ff;
+      padding: 10px 14px;
+      border-radius: 14px;
+      margin-bottom: 10px;
+      max-width: 80%;
+    }
+
+    .message strong {
+      display: block;
+      font-size: 13px;
+      color: #4338ca;
+      margin-bottom: 4px;
+    }
+
+    .time {
+      font-size: 11px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .input-section {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid #eee;
+      background: white;
+    }
+
+    .input-section input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    .input-section button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .input-section button:hover {
+      background: #1d4ed8;
+    }
+  </style>
 </head>
 
 <body>
-  <h2>SignalR Chat</h2>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h2>SignalR Chat</h2>
+      <div id="status" class="status">Connecting...</div>
+    </div>
 
-  <input id="messageInput" placeholder="Type a message" />
-  <button onclick="sendMessage()">Send</button>
+    <div class="user-section">
+      <input id="usernameInput" placeholder="Enter your name" value="Ravali" />
+    </div>
 
-  <ul id="messages"></ul>
+    <ul id="messages"></ul>
+
+    <div class="input-section">
+      <input id="messageInput" placeholder="Type your message..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
 
   <script>
     let connection;
 
-    // 🔥 START CONNECTION
     async function start() {
       try {
         console.log("Calling negotiate...");
 
-        // Step 1: Call Azure Function (negotiate)
         const response = await fetch("http://localhost:7071/api/negotiate", {
           method: "POST"
         });
 
         const data = await response.json();
 
-        console.log("Negotiate response:", data);
-
-        // Step 2: Connect to SignalR
         connection = new signalR.HubConnectionBuilder()
           .withUrl(data.url, {
             accessTokenFactory: () => data.accessToken
@@ -38,27 +157,24 @@
           .withAutomaticReconnect()
           .build();
 
-        // Step 3: Listen for messages
         connection.on("newMessage", (message) => {
-          console.log("Received message:", message);
-
-          const li = document.createElement("li");
-          li.textContent = message.sender + ": " + message.text;
-
-          document.getElementById("messages").appendChild(li);
+          addMessage(message.sender, message.text, message.time);
         });
 
         await connection.start();
-        console.log("Connected to SignalR ✅");
+
+        document.getElementById("status").textContent = "Connected ✅";
+        console.log("Connected to SignalR");
 
       } catch (error) {
+        document.getElementById("status").textContent = "Connection failed ❌";
         console.error("Connection error:", error);
       }
     }
 
-    // 🔥 SEND MESSAGE
     async function sendMessage() {
-      const text = document.getElementById("messageInput").value;
+      const text = document.getElementById("messageInput").value.trim();
+      const sender = document.getElementById("usernameInput").value.trim() || "Anonymous";
 
       if (!text) return;
 
@@ -71,7 +187,9 @@
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            text: text
+            sender: sender,
+            text: text,
+            time: new Date().toLocaleTimeString()
           })
         });
 
@@ -82,7 +200,27 @@
       }
     }
 
-    // Start app
+    function addMessage(sender, text, time) {
+      const li = document.createElement("li");
+      li.className = "message";
+
+      li.innerHTML = `
+        <strong>${sender}</strong>
+        <div>${text}</div>
+        <div class="time">${time || new Date().toLocaleTimeString()}</div>
+      `;
+
+      const messages = document.getElementById("messages");
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    document.getElementById("messageInput").addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        sendMessage();
+      }
+    });
+
     start();
   </script>
 </body>
